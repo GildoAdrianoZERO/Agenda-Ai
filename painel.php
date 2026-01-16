@@ -19,10 +19,19 @@ setlocale(LC_TIME, 'pt_BR', 'pt_BR.utf-8', 'portuguese');
 $texto_semana = ucfirst(strftime('%A', strtotime($filtro_data)));
 if($filtro_data == date('Y-m-d')) $texto_semana = "Hoje";
 
-// --- 2. BUSCA NO BANCO ---
-$sql = "SELECT a.*, s.nome as servico_nome, s.preco 
+// --- NOVO: BUSCA PROFISSIONAIS (Para o Modal) ---
+// Ajuste a query conforme o nome da sua tabela de profissionais
+$sqlProf = "SELECT id, nome, foto FROM profissionais WHERE estabelecimento_id = ?"; 
+$stmtProf = $pdo->prepare($sqlProf);
+$stmtProf->execute([$loja_id]);
+$profissionais = $stmtProf->fetchAll();
+
+// --- 2. BUSCA NO BANCO (ATUALIZADA COM JOIN PROFISSIONAIS) ---
+$sql = "SELECT a.*, s.nome as servico_nome, s.preco,
+               p.nome as prof_nome, p.foto as prof_foto
         FROM agendamentos a
         JOIN servicos s ON a.servico_id = s.id
+        LEFT JOIN profissionais p ON a.profissional_id = p.id
         WHERE a.estabelecimento_id = ? 
         AND DATE(a.data_hora_inicio) = ?
         ORDER BY a.data_hora_inicio ASC";
@@ -91,6 +100,10 @@ foreach($agenda as $item) {
         /* Modal Animation */
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.2s ease-out; }
+        
+        /* Hide scrollbar for horiz scrolling */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-light-bg text-gray-900 dark:bg-dark-bg dark:text-white font-sans min-h-screen transition-colors duration-300">
@@ -126,14 +139,20 @@ foreach($agenda as $item) {
                 </div>
 
                 <div class="hidden md:flex items-center gap-2">
+                    <a href="relatorios.php" class="w-10 h-10 flex items-center justify-center rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 transition" title="Relatórios Financeiros">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    </a>
+
+                    <a href="configuracoes.php" class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-dark-border hover:text-gold transition text-gray-500" title="Configurações">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </a>
+
                     <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-dark-border hover:text-gold transition text-gray-500">
                         <span id="theme-icon">☀️</span>
                     </button>
+                    
                     <a href="logout.php" class="w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition" title="Sair">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-                    </a>
-                    <a href="configuracoes.php" class="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-dark-border hover:text-gold transition text-gray-500" title="Configurações">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     </a>
                 </div>
             </div>
@@ -188,7 +207,28 @@ foreach($agenda as $item) {
                     </div>
 
                     <div class="flex-1 w-full text-center md:text-left">
-                        <h3 class="font-bold text-lg text-gray-900 dark:text-white"><?= e($item['cliente_nome']) ?></h3>
+                        
+                        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                            <h3 class="font-bold text-lg text-gray-900 dark:text-white"><?= e($item['cliente_nome']) ?></h3>
+                            
+                            <?php if(!empty($item['profissional_id'])): ?>
+                                <button onclick="abrirModalProfissional(<?= $item['id'] ?>)" class="flex items-center gap-2 pl-1 pr-3 py-0.5 rounded-full bg-gold/10 hover:bg-gold/20 text-gold border border-gold/20 transition group">
+                                    <?php if($item['prof_foto']): ?>
+                                        <img src="<?= $item['prof_foto'] ?>" class="w-6 h-6 rounded-full object-cover">
+                                    <?php else: ?>
+                                        <div class="w-6 h-6 rounded-full bg-gold text-white text-[10px] flex items-center justify-center font-bold">
+                                            <?= strtoupper(substr($item['prof_nome'], 0, 1)) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                    <span class="text-xs font-bold truncate max-w-[100px]"><?= e($item['prof_nome']) ?></span>
+                                </button>
+                            <?php else: ?>
+                                <button onclick="abrirModalProfissional(<?= $item['id'] ?>)" class="flex items-center gap-1 px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:text-gold hover:border-gold transition text-xs font-bold">
+                                    👤 <span class="hidden sm:inline">Escolher</span>
+                                </button>
+                            <?php endif; ?>
+                            </div>
+
                         <div class="flex flex-wrap justify-center md:justify-start gap-4 text-sm text-gray-500 mt-1">
                             <span>✂️ <?= e($item['servico_nome']) ?></span>
                             <span>📱 <?= e($item['cliente_telefone']) ?></span>
@@ -227,7 +267,6 @@ foreach($agenda as $item) {
     <div id="modal-reagendar" class="fixed inset-0 z-[10000] hidden flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="fecharModal()"></div>
         <div class="bg-white dark:bg-[#151515] w-full max-w-lg rounded-2xl shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
-            
             <div class="p-6 border-b border-light-border dark:border-dark-border flex justify-between items-center bg-gray-50 dark:bg-[#1A1A1A]">
                 <div>
                     <h3 class="text-lg font-bold text-gray-900 dark:text-white">Reagendar Horário</h3>
@@ -235,19 +274,15 @@ foreach($agenda as $item) {
                 </div>
                 <button onclick="fecharModal()" class="text-gray-400 hover:text-red-500 text-2xl">×</button>
             </div>
-
             <div class="p-6 overflow-y-auto">
                 <input type="hidden" id="reagendar-id">
-                
                 <label class="block text-xs font-bold text-gray-500 uppercase mb-2">1. Escolha a Nova Data</label>
                 <div class="flex gap-2 overflow-x-auto pb-4 no-scrollbar" id="lista-dias"></div>
-
                 <label class="block text-xs font-bold text-gray-500 uppercase mt-4 mb-2">2. Escolha o Novo Horário</label>
                 <div id="grid-horarios" class="grid grid-cols-4 gap-2">
                     <div class="col-span-4 text-center py-6 text-gray-500 text-sm border border-dashed border-gray-300 dark:border-dark-border rounded-lg">Selecione um dia acima 👆</div>
                 </div>
             </div>
-
             <div class="p-4 border-t border-light-border dark:border-dark-border bg-gray-50 dark:bg-[#1A1A1A]">
                 <button id="btn-confirmar-reagendamento" onclick="confirmarReagendamento()" disabled class="w-full bg-gray-300 dark:bg-dark-border text-gray-500 font-bold py-3 rounded-xl cursor-not-allowed transition">
                     Selecione um horário
@@ -256,10 +291,41 @@ foreach($agenda as $item) {
         </div>
     </div>
 
+    <div id="modal-profissional" class="fixed inset-0 z-[10000] hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="fecharModalProfissional()"></div>
+        <div class="bg-white dark:bg-[#151515] w-full max-w-md rounded-2xl shadow-2xl relative z-10 overflow-hidden flex flex-col">
+            <div class="p-5 border-b border-light-border dark:border-dark-border flex justify-between items-center bg-gray-50 dark:bg-[#1A1A1A]">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Escolher Profissional</h3>
+                <button onclick="fecharModalProfissional()" class="text-gray-400 hover:text-red-500 text-2xl">×</button>
+            </div>
+            
+            <div class="p-5 overflow-y-auto max-h-[60vh]">
+                <input type="hidden" id="atribuir-agendamento-id">
+                <div class="grid grid-cols-1 gap-3">
+                    <?php foreach($profissionais as $prof): ?>
+                        <button onclick="salvarAtribuicao(<?= $prof['id'] ?>)" class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-dark-border hover:border-gold bg-gray-50 dark:bg-black/20 hover:bg-white dark:hover:bg-dark-surface transition group text-left">
+                            <?php if($prof['foto']): ?>
+                                <img src="<?= $prof['foto'] ?>" class="w-10 h-10 rounded-full object-cover border border-gray-300 dark:border-dark-border group-hover:border-gold">
+                            <?php else: ?>
+                                <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-dark-border text-gray-500 flex items-center justify-center font-bold text-lg group-hover:bg-gold group-hover:text-white transition">
+                                    <?= strtoupper(substr($prof['nome'], 0, 1)) ?>
+                                </div>
+                            <?php endif; ?>
+                            <div>
+                                <h4 class="font-bold text-gray-900 dark:text-white"><?= e($prof['nome']) ?></h4>
+                                <span class="text-xs text-gray-500 group-hover:text-gold">Clique para atribuir</span>
+                            </div>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const LOJA_ID = <?= $loja_id ?>;
         
-        // --- 1. FUNÇÕES DO MODAL ---
+        // --- 1. FUNÇÕES DO MODAL REAGENDAMENTO (MANTIDAS) ---
         let dataSelecionada = '';
         let horaSelecionada = '';
 
@@ -267,7 +333,7 @@ foreach($agenda as $item) {
             document.getElementById('reagendar-id').value = id;
             document.getElementById('modal-cliente-nome').innerText = nomeCliente;
             document.getElementById('modal-reagendar').classList.remove('hidden');
-            gerarDias(); // Gera os botões de dia
+            gerarDias(); 
         }
 
         function fecharModal() {
@@ -286,7 +352,7 @@ foreach($agenda as $item) {
             for(let i=0; i<14; i++) {
                 const d = new Date(hoje);
                 d.setDate(hoje.getDate() + i);
-                if(d.getDay() === 0) continue; // Pula Domingo
+                if(d.getDay() === 0) continue; 
 
                 const diaF = d.toISOString().split('T')[0];
                 const btn = document.createElement('button');
@@ -294,13 +360,11 @@ foreach($agenda as $item) {
                 btn.innerHTML = `<span class="text-[10px] text-gray-500 uppercase">${diasSemana[d.getDay()]}</span><span class="text-lg font-bold text-gray-900 dark:text-white">${d.getDate()}</span>`;
                 
                 btn.onclick = () => {
-                    // Remove active de todos
                     Array.from(container.children).forEach(c => {
                         c.classList.remove('bg-gold', 'border-gold');
                         c.querySelectorAll('span')[1].classList.remove('text-black');
                         c.querySelectorAll('span')[1].classList.add('text-gray-900', 'dark:text-white');
                     });
-                    // Add active
                     btn.classList.add('bg-gold', 'border-gold');
                     btn.querySelectorAll('span')[1].classList.remove('text-gray-900', 'dark:text-white');
                     btn.querySelectorAll('span')[1].classList.add('text-black');
@@ -315,8 +379,6 @@ foreach($agenda as $item) {
         async function carregarHorarios(data) {
             const grid = document.getElementById('grid-horarios');
             grid.innerHTML = '<div class="col-span-4 text-center text-gray-400 py-4">Carregando...</div>';
-            
-            // Busca ocupados
             let ocupados = [];
             try {
                 const res = await fetch(`api_horarios.php?loja_id=${LOJA_ID}&data=${data}`);
@@ -369,7 +431,6 @@ foreach($agenda as $item) {
         async function confirmarReagendamento() {
             const id = document.getElementById('reagendar-id').value;
             const nome = document.getElementById('modal-cliente-nome').innerText;
-            
             try {
                 const res = await fetch('api_reagendar.php', {
                     method: 'POST',
@@ -377,9 +438,7 @@ foreach($agenda as $item) {
                     body: JSON.stringify({ id, data: dataSelecionada, hora: horaSelecionada })
                 });
                 const json = await res.json();
-                
                 if(json.success) {
-                    // Manda msg zap
                     const msg = `Olá ${nome}. Reagendamos seu horário para dia ${dataSelecionada.split('-').reverse().join('/')} às ${horaSelecionada}. Te aguardamos! 📅`;
                     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
                     location.reload();
@@ -389,7 +448,46 @@ foreach($agenda as $item) {
             } catch(e) { console.error(e); }
         }
 
-        // --- 2. AÇÕES DE CONFIRMAR/CANCELAR ---
+        // --- 2. NOVO: FUNÇÕES DE ATRIBUIÇÃO DE PROFISSIONAL ---
+        function abrirModalProfissional(agendamentoId) {
+            document.getElementById('atribuir-agendamento-id').value = agendamentoId;
+            document.getElementById('modal-profissional').classList.remove('hidden');
+        }
+
+        function fecharModalProfissional() {
+            document.getElementById('modal-profissional').classList.add('hidden');
+        }
+
+        async function salvarAtribuicao(profissionalId) {
+            const agendamentoId = document.getElementById('atribuir-agendamento-id').value;
+            if(!agendamentoId || !profissionalId) return;
+
+            // Feedback visual (opcional: mudar cursor ou mostrar loading)
+            document.body.style.cursor = 'wait';
+
+            try {
+                const res = await fetch('api_atribuir.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ agendamento_id: agendamentoId, profissional_id: profissionalId })
+                });
+                const json = await res.json();
+                
+                if(json.success) {
+                    location.reload();
+                } else {
+                    alert('Erro ao atribuir: ' + (json.message || 'Erro desconhecido'));
+                }
+            } catch(e) {
+                console.error(e);
+                alert('Erro na comunicação com o servidor');
+            } finally {
+                document.body.style.cursor = 'default';
+            }
+        }
+
+
+        // --- 3. AÇÕES DE CONFIRMAR/CANCELAR (MANTIDAS) ---
         async function gerenciarAgendamento(id, acao, telefone, nome, data, hora) {
             let zapLimpo = telefone.replace(/\D/g, '');
             if(zapLimpo.length <= 11) zapLimpo = "55" + zapLimpo;
@@ -415,7 +513,7 @@ foreach($agenda as $item) {
             }
         }
 
-        // --- 3. CALENDÁRIO TOPO ---
+        // --- 4. CALENDÁRIO TOPO (MANTIDO) ---
         document.addEventListener('DOMContentLoaded', function() {
             const backdrop = document.getElementById('calendar-backdrop');
             const trigger = document.getElementById('date-trigger');
@@ -428,7 +526,6 @@ foreach($agenda as $item) {
             trigger.onclick = () => calendar.open();
             backdrop.onclick = () => calendar.close();
 
-            // Tema
             const toggle = document.getElementById('theme-toggle');
             const icon = document.getElementById('theme-icon');
             const updateIcon = () => icon.innerText = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';

@@ -10,6 +10,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $loja_id = filter_input(INPUT_POST, 'loja_id', FILTER_VALIDATE_INT);
 $servico_id = filter_input(INPUT_POST, 'servico_id', FILTER_VALIDATE_INT);
+// Recebe o profissional (pode ser nulo se for "Tanto faz")
+$profissional_id = filter_input(INPUT_POST, 'profissional_id', FILTER_VALIDATE_INT); 
+
 $data = filter_input(INPUT_POST, 'data'); // YYYY-MM-DD
 $hora = filter_input(INPUT_POST, 'hora'); // HH:mm
 $cliente_nome = filter_input(INPUT_POST, 'cliente_nome', FILTER_SANITIZE_SPECIAL_CHARS);
@@ -21,25 +24,35 @@ if (!$loja_id || !$servico_id || !$data || !$hora || !$cliente_nome) {
 }
 
 try {
-    // 2. BUSCA A DURAÇÃO DO SERVIÇO (Para calcular a hora que acaba)
+    // 2. BUSCA A DURAÇÃO DO SERVIÇO
     $stmtServico = $pdo->prepare("SELECT duracao_minutos, nome, preco FROM servicos WHERE id = ?");
     $stmtServico->execute([$servico_id]);
     $servico = $stmtServico->fetch();
+
+    // 2.1 BUSCA O NOME DO PROFISSIONAL (Para exibir no comprovante)
+    $nome_profissional = "Qualquer profissional"; // Padrão
+    if ($profissional_id) {
+        $stmtProf = $pdo->prepare("SELECT nome FROM profissionais WHERE id = ?");
+        $stmtProf->execute([$profissional_id]);
+        $prof = $stmtProf->fetch();
+        if($prof) $nome_profissional = $prof['nome'];
+    }
 
     // 3. CÁLCULO DE DATAS
     $inicio = DateTime::createFromFormat('Y-m-d H:i', "$data $hora");
     $fim = clone $inicio;
     $fim->modify("+{$servico['duracao_minutos']} minutes");
 
-    // 4. SALVA NO BANCO (Aqui é onde o estabelecimento recebe o dado!)
+    // 4. SALVA NO BANCO (Agora incluindo o profissional_id)
     $sql = "INSERT INTO agendamentos 
-            (estabelecimento_id, servico_id, data_hora_inicio, data_hora_fim, cliente_nome, cliente_telefone, status) 
-            VALUES (?, ?, ?, ?, ?, ?, 'agendado')";
+            (estabelecimento_id, servico_id, profissional_id, data_hora_inicio, data_hora_fim, cliente_nome, cliente_telefone, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'agendado')";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
         $loja_id, 
         $servico_id, 
+        $profissional_id, // Salva o ID do barbeiro (ou NULL)
         $inicio->format('Y-m-d H:i:s'), 
         $fim->format('Y-m-d H:i:s'),
         $cliente_nome,
@@ -94,9 +107,15 @@ try {
                 <span class="text-gray-500 text-sm">Serviço</span>
                 <span class="font-bold"><?= e($servico['nome']) ?></span>
             </div>
+            
+            <div class="flex justify-between">
+                <span class="text-gray-500 text-sm">Profissional</span>
+                <span class="font-bold text-gold"><?= e($nome_profissional) ?></span>
+            </div>
+
             <div class="flex justify-between">
                 <span class="text-gray-500 text-sm">Data & Hora</span>
-                <span class="font-bold text-gold">
+                <span class="font-bold">
                     <?= date('d/m', strtotime($data)) ?> às <?= $hora ?>
                 </span>
             </div>
