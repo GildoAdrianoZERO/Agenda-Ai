@@ -99,13 +99,13 @@ try {
         
         <form action="index.php" method="GET" class="w-full max-w-4xl bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-2xl p-2 flex flex-col md:flex-row gap-2 shadow-2xl dark:shadow-black/50 relative z-10">
             <div class="flex-[1.5] flex items-center px-4 py-3 bg-transparent md:border-r border-gray-200 dark:border-dark-border">
-                <span class="text-gray-400 mr-3">🔍</span>
+                <span class="text-gray-400 mr-3"></span>
                 <input type="text" name="q" value="<?= htmlspecialchars($busca ?? '') ?>" 
-                       placeholder="Busque por nome, serviço ou profissional..." 
+                       placeholder="Busque pelo nome do estabelecimento" 
                        class="w-full bg-transparent focus:outline-none placeholder-gray-500 font-medium">
             </div>
             <div class="flex-1 flex items-center px-4 py-3 bg-transparent relative">
-                <span class="text-gray-400 mr-3">📍</span>
+                <span class="text-gray-400 mr-3"></span>
                 <input type="text" name="loc" id="location-input" value="<?= htmlspecialchars($local ?? '') ?>"
                        placeholder="Onde você está?" 
                        class="w-full bg-transparent focus:outline-none placeholder-gray-500 font-medium pr-8">

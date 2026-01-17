@@ -10,60 +10,87 @@ $tipo_msg = '';
 
 // --- PROCESSAMENTO ---
 
-// 1. Salvar Horários da Loja
-if (isset($_POST['acao']) && $_POST['acao'] == 'salvar_horarios') {
+// 1. Salvar DADOS GERAIS + HORÁRIOS + FOTO CAPA
+if (isset($_POST['acao']) && $_POST['acao'] == 'salvar_dados_loja') {
+    // Dados Básicos
+    $nome = $_POST['nome'];
+    $descricao = $_POST['descricao']; // O "Sobre"
+    $endereco = $_POST['endereco'];
+    $telefone = $_POST['telefone'];
+    
+    // Horários
     $abertura = $_POST['abertura'];
     $fechamento = $_POST['fechamento'];
     $dias = isset($_POST['dias']) ? json_encode($_POST['dias']) : '[]';
-    
-    // Almoço da Loja (Geral - opcional se usar individual)
-    $almoco_inicio = !empty($_POST['almoco_inicio']) ? $_POST['almoco_inicio'] : null;
-    $almoco_fim = !empty($_POST['almoco_fim']) ? $_POST['almoco_fim'] : null;
 
-    $stmt = $pdo->prepare("UPDATE estabelecimentos SET horario_abertura=?, horario_fechamento=?, horario_almoco_inicio=?, horario_almoco_fim=?, dias_funcionamento=? WHERE id=?");
-    $stmt->execute([$abertura, $fechamento, $almoco_inicio, $almoco_fim, $dias, $loja_id]);
-    $mensagem = "Horários da loja atualizados!"; $tipo_msg = 'success';
+    // Upload Foto Capa (NOVO)
+    $caminho_capa = null;
+    if (isset($_FILES['foto_capa']) && $_FILES['foto_capa']['error'] == 0) {
+        $ext = pathinfo($_FILES['foto_capa']['name'], PATHINFO_EXTENSION);
+        $novo_nome = 'capa_' . $loja_id . '_' . uniqid() . "." . $ext;
+        $destino = 'assets/uploads/' . $novo_nome;
+        if (!is_dir('assets/uploads')) mkdir('assets/uploads', 0777, true);
+        
+        if(move_uploaded_file($_FILES['foto_capa']['tmp_name'], $destino)) {
+            $caminho_capa = $destino;
+        }
+    }
+    
+    // SQL Dinâmica (Só atualiza a foto se enviou nova)
+    $sql = "UPDATE estabelecimentos SET 
+            nome_fantasia=?, 
+            descricao_curta=?, 
+            endereco=?, 
+            telefone=?, 
+            horario_abertura=?, 
+            horario_fechamento=?, 
+            dias_funcionamento=?";
+    
+    $params = [$nome, $descricao, $endereco, $telefone, $abertura, $fechamento, $dias];
+
+    if ($caminho_capa) {
+        $sql .= ", foto_capa=?";
+        $params[] = $caminho_capa;
+    }
+
+    $sql .= " WHERE id=?";
+    $params[] = $loja_id;
+            
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    
+    $mensagem = "Informações da loja atualizadas com sucesso!"; 
+    $tipo_msg = 'success';
 }
 
-// 2. Salvar/Editar Profissional (COM FOTO E INTERVALO)
+// 2. Salvar/Editar Profissional (Mantido igual)
 if (isset($_POST['acao']) && $_POST['acao'] == 'salvar_profissional') {
     $nome = $_POST['nome'];
     $funcao = $_POST['funcao'];
     $inicio_intervalo = !empty($_POST['inicio_intervalo']) ? $_POST['inicio_intervalo'] : null;
     $fim_intervalo = !empty($_POST['fim_intervalo']) ? $_POST['fim_intervalo'] : null;
-    $id_prof = $_POST['id_profissional']; // Se tiver ID, é edição. Se não, é novo.
+    $id_prof = $_POST['id_profissional']; 
 
-    // Upload de Foto
     $caminho_foto = null;
     if (isset($_FILES['foto']) && $_FILES['foto']['error'] == 0) {
         $ext = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
         $novo_nome = uniqid() . "." . $ext;
         $destino = 'assets/uploads/' . $novo_nome;
         if (!is_dir('assets/uploads')) mkdir('assets/uploads', 0777, true);
-        
         if(move_uploaded_file($_FILES['foto']['tmp_name'], $destino)) {
             $caminho_foto = $destino;
         }
     }
 
     if ($id_prof) {
-        // ATUALIZAR EXISTENTE
         $sql = "UPDATE profissionais SET nome=?, funcao=?, inicio_intervalo=?, fim_intervalo=?";
         $params = [$nome, $funcao, $inicio_intervalo, $fim_intervalo];
-        
-        if($caminho_foto) { // Só atualiza foto se enviou uma nova
-            $sql .= ", foto=?";
-            $params[] = $caminho_foto;
-        }
+        if($caminho_foto) { $sql .= ", foto=?"; $params[] = $caminho_foto; }
         $sql .= " WHERE id=? AND estabelecimento_id=?";
-        $params[] = $id_prof;
-        $params[] = $loja_id;
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        $params[] = $id_prof; $params[] = $loja_id;
+        $stmt = $pdo->prepare($sql); $stmt->execute($params);
         $mensagem = "Profissional atualizado!";
     } else {
-        // CRIAR NOVO
         $stmt = $pdo->prepare("INSERT INTO profissionais (estabelecimento_id, nome, funcao, foto, inicio_intervalo, fim_intervalo) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$loja_id, $nome, $funcao, $caminho_foto, $inicio_intervalo, $fim_intervalo]);
         $mensagem = "Profissional cadastrado!";
@@ -71,7 +98,7 @@ if (isset($_POST['acao']) && $_POST['acao'] == 'salvar_profissional') {
     $tipo_msg = 'success';
 }
 
-// 3. Excluir Profissional
+// 3. Excluir Profissional (Mantido igual)
 if (isset($_GET['del_prof'])) {
     $stmt = $pdo->prepare("DELETE FROM profissionais WHERE id=? AND estabelecimento_id=?");
     $stmt->execute([$_GET['del_prof'], $loja_id]);
@@ -141,29 +168,85 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
         <?php endif; ?>
         
         <div class="flex space-x-2 mb-8 bg-gray-200 dark:bg-dark-surface p-1.5 rounded-xl max-w-md mx-auto md:mx-0">
-            <button onclick="mudarAba('horarios')" id="tab-horarios" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition shadow-sm bg-white dark:bg-dark-border text-gold">🕒 Horários</button>
+            <button onclick="mudarAba('dados')" id="tab-dados" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition shadow-sm bg-white dark:bg-dark-border text-gold">🏪 Loja & Horários</button>
             <button onclick="mudarAba('servicos')" id="tab-servicos" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition text-gray-500 hover:text-gray-900 dark:hover:text-white">✂️ Serviços</button>
             <button onclick="mudarAba('profissionais')" id="tab-profissionais" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition text-gray-500 hover:text-gray-900 dark:hover:text-white">👨‍💼 Equipe</button>
         </div>
 
-        <div id="content-horarios" class="tab-content">
+        <div id="content-dados" class="tab-content">
             <div class="bg-white dark:bg-dark-surface p-6 md:p-8 rounded-2xl border border-light-border dark:border-dark-border shadow-sm">
-                <form method="POST">
-                    <input type="hidden" name="acao" value="salvar_horarios">
-                    <h3 class="font-bold text-lg mb-4 text-gold">Expediente Geral da Loja</h3>
-                    <div class="grid grid-cols-2 gap-6 mb-6">
-                        <div><label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Abertura</label><input type="time" name="abertura" value="<?= $loja['horario_abertura'] ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-4 text-xl font-bold text-center focus:border-gold outline-none transition"></div>
-                        <div><label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fechamento</label><input type="time" name="fechamento" value="<?= $loja['horario_fechamento'] ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-4 text-xl font-bold text-center focus:border-gold outline-none transition"></div>
-                    </div>
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="acao" value="salvar_dados_loja">
                     
-                    <div class="border-t border-gray-100 dark:border-dark-border my-6"></div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dias de Atendimento</label>
-                    <div class="grid grid-cols-4 md:grid-cols-7 gap-3 mb-8">
-                        <?php $dias_semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']; foreach($dias_semana as $k => $dia): $checked = in_array((string)$k, $dias_ativos) ? 'checked' : ''; ?>
-                        <label class="cursor-pointer relative"><input type="checkbox" name="dias[]" value="<?= $k ?>" <?= $checked ?> class="peer sr-only"><div class="text-center py-3 rounded-xl border-2 border-transparent bg-gray-100 dark:bg-dark-bg text-gray-500 font-bold peer-checked:bg-gold peer-checked:text-black peer-checked:shadow-lg transition-all hover:bg-gray-200 dark:hover:bg-dark-border"><?= $dia ?></div></label>
-                        <?php endforeach; ?>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        
+                        <div class="md:col-span-1">
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Foto de Capa</label>
+                            <div class="relative w-full aspect-square rounded-2xl overflow-hidden bg-gray-100 dark:bg-black/50 border-2 border-dashed border-gray-300 dark:border-dark-border group cursor-pointer" onclick="document.getElementById('input-capa').click()">
+                                <?php 
+                                    $bgImage = !empty($loja['foto_capa']) ? $loja['foto_capa'] : '';
+                                    $displayPlaceholder = empty($bgImage) ? 'flex' : 'hidden';
+                                ?>
+                                <img id="preview-capa" src="<?= $bgImage ?>" class="w-full h-full object-cover <?= empty($bgImage) ? 'hidden' : '' ?>">
+                                <div id="placeholder-capa" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 gap-2 <?= $displayPlaceholder ?>">
+                                    <span class="text-3xl">📷</span>
+                                    <span class="text-xs font-bold">Alterar Capa</span>
+                                </div>
+                                <div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center text-white font-bold text-xs uppercase tracking-wider transition">Clique para trocar</div>
+                            </div>
+                            <input type="file" name="foto_capa" id="input-capa" class="hidden" accept="image/*" onchange="previewCapa(this)">
+                            <p class="text-[10px] text-gray-400 mt-2 text-center">JPG ou PNG (Max 2MB)</p>
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <h3 class="font-bold text-lg mb-4 text-gold flex items-center gap-2">📝 Sobre o Estabelecimento</h3>
+                            <div class="space-y-4 mb-8">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Nome da Barbearia</label>
+                                    <input type="text" name="nome" value="<?= htmlspecialchars($loja['nome_fantasia']) ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-3 focus:border-gold outline-none transition dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Descrição / Slogan</label>
+                                    <textarea name="descricao" rows="2" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-3 focus:border-gold outline-none transition dark:text-white" placeholder="Ex: A melhor barbearia da cidade..."><?= htmlspecialchars($loja['descricao_curta'] ?? '') ?></textarea>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Endereço</label>
+                                        <input type="text" name="endereco" value="<?= htmlspecialchars($loja['endereco']) ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-3 focus:border-gold outline-none transition dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Telefone / WhatsApp</label>
+                                        <input type="text" name="telefone" value="<?= htmlspecialchars($loja['telefone'] ?? '') ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-3 focus:border-gold outline-none transition dark:text-white">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-gray-100 dark:border-dark-border my-6"></div>
+
+                            <h3 class="font-bold text-lg mb-4 text-gold flex items-center gap-2">🕒 Expediente</h3>
+                            <div class="grid grid-cols-2 gap-6 mb-6">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Abertura</label>
+                                    <input type="time" name="abertura" value="<?= $loja['horario_abertura'] ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-4 text-xl font-bold text-center focus:border-gold outline-none transition dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fechamento</label>
+                                    <input type="time" name="fechamento" value="<?= $loja['horario_fechamento'] ?>" class="w-full bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl p-4 text-xl font-bold text-center focus:border-gold outline-none transition dark:text-white">
+                                </div>
+                            </div>
+                            
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Dias de Atendimento</label>
+                            <div class="grid grid-cols-4 md:grid-cols-7 gap-3 mb-8">
+                                <?php $dias_semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']; foreach($dias_semana as $k => $dia): $checked = in_array((string)$k, $dias_ativos) ? 'checked' : ''; ?>
+                                <label class="cursor-pointer relative"><input type="checkbox" name="dias[]" value="<?= $k ?>" <?= $checked ?> class="peer sr-only"><div class="text-center py-3 rounded-xl border-2 border-transparent bg-gray-100 dark:bg-dark-bg text-gray-500 font-bold peer-checked:bg-gold peer-checked:text-black peer-checked:shadow-lg transition-all hover:bg-gray-200 dark:hover:bg-dark-border"><?= $dia ?></div></label>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="submit" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-xl transition shadow-lg shadow-green-900/20 w-full md:w-auto">Salvar Tudo</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex justify-end"><button type="submit" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-xl transition shadow-lg shadow-green-900/20">Salvar Alterações</button></div>
                 </form>
             </div>
         </div>
@@ -175,8 +258,8 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
                         <h3 class="font-bold text-lg text-gray-900 dark:text-white mb-4">Novo Serviço</h3>
                         <form method="POST" class="space-y-4">
                             <input type="hidden" name="acao" value="add_servico">
-                            <div><label class="text-xs font-bold text-gray-400 uppercase">Nome</label><input type="text" name="nome" placeholder="Ex: Corte Navalhado" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none"></div>
-                            <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold text-gray-400 uppercase">Preço</label><input type="text" name="preco" placeholder="30,00" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none"></div><div><label class="text-xs font-bold text-gray-400 uppercase">Min</label><input type="number" name="duracao" placeholder="40" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none"></div></div>
+                            <div><label class="text-xs font-bold text-gray-400 uppercase">Nome</label><input type="text" name="nome" placeholder="Ex: Corte Navalhado" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none dark:text-white"></div>
+                            <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-bold text-gray-400 uppercase">Preço</label><input type="text" name="preco" placeholder="30,00" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none dark:text-white"></div><div><label class="text-xs font-bold text-gray-400 uppercase">Min</label><input type="number" name="duracao" placeholder="40" required class="w-full mt-1 p-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:border-gold outline-none dark:text-white"></div></div>
                             <button type="submit" class="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-xl transition">Adicionar</button>
                         </form>
                     </div>
@@ -195,19 +278,16 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
         </div>
 
         <div id="content-profissionais" class="tab-content hidden">
-            
             <div class="flex justify-between items-center mb-6">
                 <div><h2 class="text-xl font-bold text-gray-900 dark:text-white">Gerenciar Equipe</h2><p class="text-sm text-gray-500">Adicione seus colaboradores e fotos.</p></div>
                 <button onclick="abrirModalProfissional()" class="bg-gold hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded-xl shadow-lg transition">+ Novo Profissional</button>
             </div>
-
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <?php if(count($profissionais) == 0): ?>
                     <div class="col-span-full text-center py-12 text-gray-500 bg-white dark:bg-dark-surface rounded-2xl border border-dashed border-gray-300 dark:border-dark-border">Nenhum profissional cadastrado.</div>
                 <?php else: ?>
                     <?php foreach($profissionais as $p): 
                         $foto = !empty($p['foto']) ? $p['foto'] : 'https://ui-avatars.com/api/?name='.urlencode($p['nome']).'&background=F59E0B&color=000';
-                        // Prepara dados para o JS (JSON dentro do HTML)
                         $dadosJson = htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8');
                     ?>
                     <div class="bg-white dark:bg-dark-surface p-5 rounded-2xl border border-light-border dark:border-dark-border shadow-sm group hover:border-gold/50 transition relative">
@@ -236,11 +316,9 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
         <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="fecharModalProfissional()"></div>
         <div class="bg-white dark:bg-[#151515] w-full max-w-md rounded-2xl shadow-2xl relative z-10 p-6 border border-light-border dark:border-dark-border">
             <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white" id="modal-titulo">Novo Profissional</h3>
-            
             <form method="POST" enctype="multipart/form-data" class="space-y-4">
                 <input type="hidden" name="acao" value="salvar_profissional">
                 <input type="hidden" name="id_profissional" id="prof-id">
-
                 <div class="flex gap-4">
                     <div class="w-20 h-20 bg-gray-100 dark:bg-dark-bg rounded-full flex items-center justify-center border border-dashed border-gray-300 dark:border-dark-border relative overflow-hidden group">
                         <img id="preview-foto" class="absolute inset-0 w-full h-full object-cover hidden">
@@ -248,25 +326,16 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
                         <input type="file" name="foto" class="absolute inset-0 opacity-0 cursor-pointer" onchange="previewImage(this)">
                     </div>
                     <div class="flex-1 space-y-3">
-                        <div>
-                            <label class="text-xs font-bold text-gray-400 uppercase">Nome</label>
-                            <input type="text" name="nome" id="prof-nome" required class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:border-gold outline-none">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-gray-400 uppercase">Função</label>
-                            <input type="text" name="funcao" id="prof-funcao" placeholder="Ex: Barbeiro" required class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:border-gold outline-none">
-                        </div>
+                        <div><label class="text-xs font-bold text-gray-400 uppercase">Nome</label><input type="text" name="nome" id="prof-nome" required class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:border-gold outline-none dark:text-white"></div>
+                        <div><label class="text-xs font-bold text-gray-400 uppercase">Função</label><input type="text" name="funcao" id="prof-funcao" placeholder="Ex: Barbeiro" required class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:border-gold outline-none dark:text-white"></div>
                     </div>
                 </div>
-
                 <div class="border-t border-gray-100 dark:border-dark-border my-2"></div>
-                
                 <p class="text-xs font-bold text-gold uppercase mb-2">Intervalo de Almoço (Individual)</p>
                 <div class="grid grid-cols-2 gap-3">
-                    <div><label class="text-xs text-gray-500">Início</label><input type="time" name="inicio_intervalo" id="prof-inicio" class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg"></div>
-                    <div><label class="text-xs text-gray-500">Fim</label><input type="time" name="fim_intervalo" id="prof-fim" class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg"></div>
+                    <div><label class="text-xs text-gray-500">Início</label><input type="time" name="inicio_intervalo" id="prof-inicio" class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg dark:text-white"></div>
+                    <div><label class="text-xs text-gray-500">Fim</label><input type="time" name="fim_intervalo" id="prof-fim" class="w-full mt-1 p-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg dark:text-white"></div>
                 </div>
-
                 <button type="submit" class="w-full bg-gold hover:bg-yellow-500 text-black font-bold py-3 rounded-xl mt-4 transition">Salvar</button>
             </form>
             <button onclick="fecharModalProfissional()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500">✕</button>
@@ -277,7 +346,7 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
         function mudarAba(aba) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.getElementById('content-' + aba).classList.remove('hidden');
-            const btns = ['horarios', 'servicos', 'profissionais'];
+            const btns = ['dados', 'servicos', 'profissionais'];
             btns.forEach(b => {
                 const btn = document.getElementById('tab-' + b);
                 if (b === aba) { btn.classList.add('bg-white', 'dark:bg-dark-border', 'shadow-sm', 'text-gold'); btn.classList.remove('text-gray-500'); } 
@@ -285,7 +354,21 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
             });
         }
 
-        // Modal Profissional
+        // Preview da Foto de Capa (NOVO)
+        function previewCapa(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.getElementById('preview-capa');
+                    const placeholder = document.getElementById('placeholder-capa');
+                    img.src = e.target.result; 
+                    img.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
         const modalProf = document.getElementById('modal-profissional');
         function abrirModalProfissional() {
             document.getElementById('modal-titulo').innerText = "Novo Profissional";
@@ -304,14 +387,10 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
             document.getElementById('prof-funcao').value = dados.funcao;
             document.getElementById('prof-inicio').value = dados.inicio_intervalo;
             document.getElementById('prof-fim').value = dados.fim_intervalo;
-            
             if(dados.foto) {
                 const img = document.getElementById('preview-foto');
-                img.src = dados.foto;
-                img.classList.remove('hidden');
-            } else {
-                document.getElementById('preview-foto').classList.add('hidden');
-            }
+                img.src = dados.foto; img.classList.remove('hidden');
+            } else { document.getElementById('preview-foto').classList.add('hidden'); }
             modalProf.classList.remove('hidden');
         }
         function fecharModalProfissional() { modalProf.classList.add('hidden'); }
@@ -320,8 +399,7 @@ $stmt->execute([$loja_id]); $profissionais = $stmt->fetchAll();
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const img = document.getElementById('preview-foto');
-                    img.src = e.target.result;
-                    img.classList.remove('hidden');
+                    img.src = e.target.result; img.classList.remove('hidden');
                 }
                 reader.readAsDataURL(input.files[0]);
             }

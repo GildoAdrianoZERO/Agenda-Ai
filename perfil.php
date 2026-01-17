@@ -17,14 +17,46 @@ $stmtServicos = $pdo->prepare("SELECT * FROM servicos WHERE estabelecimento_id =
 $stmtServicos->execute([$id]);
 $servicos = $stmtServicos->fetchAll();
 
-// Busca Profissionais (NOVO)
+// Busca Profissionais
 $stmtProf = $pdo->prepare("SELECT * FROM profissionais WHERE estabelecimento_id = ? AND ativo = 1");
 $stmtProf->execute([$id]);
 $profissionais = $stmtProf->fetchAll();
 
-// Horários Loja
+// --- LÓGICA VISUAL ---
+// 1. Horários
 $horaAbertura = substr($loja['horario_abertura'] ?? '09:00', 0, 5);
 $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
+
+// 2. Dias de Funcionamento (Lógica Inteligente)
+$diasIndices = json_decode($loja['dias_funcionamento'] ?? '[]', true);
+// Garante que são inteiros
+$diasIndices = array_map('intval', $diasIndices);
+sort($diasIndices); // Ordena (0=Dom, 1=Seg...)
+
+$diasNomes = [0=>'Dom', 1=>'Seg', 2=>'Ter', 3=>'Qua', 4=>'Qui', 5=>'Sex', 6=>'Sáb'];
+$diasTextoArray = [];
+foreach($diasIndices as $d) {
+    if(isset($diasNomes[$d])) $diasTextoArray[] = $diasNomes[$d];
+}
+
+// Formata o texto bonito (Ex: "Seg a Sex" ou "Ter, Qui")
+if (count($diasTextoArray) == 7) {
+    $textoDias = "Todos os dias";
+} elseif ($diasIndices === [1, 2, 3, 4, 5]) {
+    $textoDias = "Seg a Sex";
+} elseif ($diasIndices === [1, 2, 3, 4, 5, 6]) {
+    $textoDias = "Seg a Sáb";
+} else {
+    $textoDias = implode(', ', $diasTextoArray);
+}
+if(empty($textoDias)) $textoDias = "Fechado";
+
+// 3. Foto de Capa
+$fotoCapa = !empty($loja['foto_capa']) ? $loja['foto_capa'] : 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&q=80';
+
+// 4. Link do WhatsApp
+$temZap = !empty($loja['telefone']);
+$linkZap = $temZap ? "https://wa.me/55" . preg_replace('/\D/', '', $loja['telefone']) : "#";
 ?>
 
 <!DOCTYPE html>
@@ -49,24 +81,37 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
         </div>
     </nav>
 
-    <div class="relative w-full h-72 md:h-80 bg-gray-800">
-        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('<?= empty($loja['foto_capa']) ? 'assets/img/default.jpg' : $loja['foto_capa'] ?>');"></div>
+    <div class="relative w-full h-72 md:h-80 bg-gray-800 group">
+        <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" style="background-image: url('<?= $fotoCapa ?>');"></div>
         <div class="absolute inset-0 bg-gradient-to-t from-dark-bg via-dark-bg/60 to-transparent"></div>
-        <div class="absolute bottom-0 w-full p-6 max-w-7xl mx-auto left-0 right-0">
-            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2"><?= e($loja['nome_fantasia']) ?></h1>
-            <p class="text-gray-300 flex items-center gap-1"><svg class="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> <?= e($loja['endereco']) ?></p>
+        <div class="absolute bottom-0 w-full p-6 max-w-7xl mx-auto left-0 right-0 flex flex-col md:flex-row justify-between items-end gap-4">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-bold text-white mb-2 shadow-sm"><?= e($loja['nome_fantasia']) ?></h1>
+                <p class="text-gray-300 flex items-center gap-2 text-sm md:text-base bg-black/30 w-fit px-3 py-1 rounded-lg backdrop-blur-sm">
+                    <svg class="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> 
+                    <?= e($loja['endereco']) ?>
+                </p>
+            </div>
+            <?php if($temZap): ?>
+            <a href="<?= $linkZap ?>" target="_blank" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded-xl flex items-center gap-2 shadow-lg hover:-translate-y-1 transition transform">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                Chamar no Zap
+            </a>
+            <?php endif; ?>
         </div>
     </div>
 
     <div class="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div class="lg:col-span-2">
-            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><span class="text-gold">✂️</span> Escolha o Serviço</h2>
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2"><span class="text-gold"></span> Escolha o Serviço</h2>
             <div class="space-y-4">
                 <?php foreach($servicos as $servico): ?>
                 <div class="bg-white dark:bg-dark-surface p-5 rounded-xl border border-gray-200 dark:border-dark-border flex justify-between items-center group hover:border-gold transition-all shadow-sm cursor-pointer" onclick="abrirModal('<?= $servico['id'] ?>', '<?= e($servico['nome']) ?>', '<?= formatarPreco($servico['preco']) ?>', '<?= $servico['duracao_minutos'] ?>')">
                     <div class="flex-1 pr-4">
                         <h3 class="font-bold text-lg text-gray-900 dark:text-white group-hover:text-gold transition"><?= e($servico['nome']) ?></h3>
-                        <p class="text-gray-500 text-sm mb-1"><?= e($servico['descricao']) ?></p>
+                        <?php if(!empty($servico['descricao'])): ?>
+                            <p class="text-gray-500 text-sm mb-1"><?= e($servico['descricao']) ?></p>
+                        <?php endif; ?>
                         <span class="text-xs text-gray-400 bg-gray-100 dark:bg-dark-bg px-2 py-1 rounded">⏱ <?= $servico['duracao_minutos'] ?> min</span>
                     </div>
                     <div class="text-right">
@@ -80,11 +125,23 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
         
         <div class="lg:col-span-1">
             <div class="bg-white dark:bg-dark-surface p-6 rounded-xl border border-gray-200 dark:border-dark-border sticky top-28 shadow-lg">
-                <h3 class="font-bold text-gold mb-4 uppercase text-xs tracking-wider">Informações</h3>
-                <p class="text-gray-600 dark:text-gray-400 text-sm mb-6 leading-relaxed"><?= e($loja['descricao_curta']) ?></p>
+                <h3 class="font-bold text-gold mb-4 uppercase text-xs tracking-wider">Sobre a Loja</h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm mb-6 leading-relaxed">
+                    <?= !empty($loja['descricao_curta']) ? nl2br(e($loja['descricao_curta'])) : 'Bem-vindo! Selecione um serviço ao lado para agendar seu horário com nossa equipe.' ?>
+                </p>
                 <div class="border-t border-gray-200 dark:border-dark-border pt-4">
                     <p class="text-sm font-bold mb-2">Horário de Funcionamento</p>
-                    <p class="text-gray-500 text-sm">Seg a Sáb: <?= $horaAbertura ?> às <?= $horaFechamento ?></p>
+                    <p class="text-gray-500 text-sm flex items-center gap-2">
+                        <span>📅</span> <?= $textoDias ?>
+                    </p>
+                    <p class="text-gray-500 text-sm flex items-center gap-2 mt-1">
+                        <span>🕒</span> <?= $horaAbertura ?> às <?= $horaFechamento ?>
+                    </p>
+                    <?php if($temZap): ?>
+                    <p class="text-gray-500 text-sm flex items-center gap-2 mt-2">
+                        <span>📞</span> <?= e($loja['telefone']) ?>
+                    </p>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -94,51 +151,36 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
         <div class="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" onclick="fecharModal()"></div>
         <div class="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
             <div class="bg-white dark:bg-[#151515] w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border pointer-events-auto modal-animate-slide flex flex-col md:flex-row relative">
-                
                 <button onclick="fecharModal()" class="absolute top-4 right-4 z-10 p-2 bg-gray-100 dark:bg-black/50 rounded-full hover:bg-red-500 hover:text-white transition">✕</button>
 
                 <div class="w-full md:w-1/3 bg-gray-50 dark:bg-[#0f0f0f] p-6 border-b md:border-b-0 md:border-r border-gray-200 dark:border-dark-border flex flex-col justify-between">
                     <div>
                         <h2 class="text-xl font-bold mb-1 text-gray-900 dark:text-white">Finalizar Agendamento</h2>
                         <p class="text-sm text-gray-500 mb-6">Confira os detalhes abaixo</p>
-                        
                         <div class="bg-white dark:bg-[#1A1A1A] p-4 rounded-xl border border-gray-200 dark:border-dark-border mb-4 shadow-sm">
                             <span class="text-[10px] text-gold font-bold uppercase tracking-wider">Serviço Selecionado</span>
                             <h3 id="modal-nome-servico" class="text-lg font-bold text-gray-900 dark:text-white mt-1">...</h3>
                             <p id="modal-duracao" class="text-xs text-gray-500 mb-3">... min</p>
-                            
                             <div class="flex justify-between items-center border-t border-gray-100 dark:border-dark-border pt-3">
                                 <span class="text-sm text-gray-400">Valor Total</span>
                                 <p id="modal-preco" class="text-xl font-bold text-green-500">...</p>
                             </div>
                         </div>
                     </div>
-
                     <form id="form-agendamento" action="confirmar_agendamento.php" method="POST" class="mt-4">
                         <input type="hidden" name="loja_id" value="<?= $loja['id'] ?>">
                         <input type="hidden" name="servico_id" id="input-servico-id">
                         <input type="hidden" name="profissional_id" id="input-prof-id"> <input type="hidden" name="data" id="input-data">
                         <input type="hidden" name="hora" id="input-hora">
-                        
                         <div class="space-y-3">
-                            <div>
-                                <label class="text-xs font-bold text-gray-500 uppercase ml-1">Seu Nome</label>
-                                <input type="text" name="cliente_nome" placeholder="Digite seu nome" required class="w-full bg-white dark:bg-black border border-gray-200 dark:border-dark-border rounded-lg p-3 text-sm focus:border-gold outline-none transition">
-                            </div>
-                            <div>
-                                <label class="text-xs font-bold text-gray-500 uppercase ml-1">Seu WhatsApp</label>
-                                <input type="tel" name="cliente_zap" placeholder="(00) 90000-0000" required class="w-full bg-white dark:bg-black border border-gray-200 dark:border-dark-border rounded-lg p-3 text-sm focus:border-gold outline-none transition">
-                            </div>
+                            <div><label class="text-xs font-bold text-gray-500 uppercase ml-1">Seu Nome</label><input type="text" name="cliente_nome" placeholder="Digite seu nome" required class="w-full bg-white dark:bg-black border border-gray-200 dark:border-dark-border rounded-lg p-3 text-sm focus:border-gold outline-none transition"></div>
+                            <div><label class="text-xs font-bold text-gray-500 uppercase ml-1">Seu WhatsApp</label><input type="tel" name="cliente_zap" placeholder="(00) 90000-0000" required class="w-full bg-white dark:bg-black border border-gray-200 dark:border-dark-border rounded-lg p-3 text-sm focus:border-gold outline-none transition"></div>
                         </div>
-                        
-                        <button type="submit" id="btn-confirmar" disabled class="w-full mt-6 bg-gray-300 dark:bg-dark-border text-gray-500 font-bold py-3.5 rounded-xl cursor-not-allowed transition-all shadow-lg hover:shadow-xl">
-                            Selecione Profissional e Data
-                        </button>
+                        <button type="submit" id="btn-confirmar" disabled class="w-full mt-6 bg-gray-300 dark:bg-dark-border text-gray-500 font-bold py-3.5 rounded-xl cursor-not-allowed transition-all shadow-lg hover:shadow-xl">Selecione Profissional e Data</button>
                     </form>
                 </div>
 
                 <div class="w-full md:w-2/3 p-6 bg-white dark:bg-[#151515] overflow-y-auto">
-                    
                     <div class="mb-8">
                         <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">1. Escolha o Profissional</h3>
                         <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -146,7 +188,6 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
                                 <div class="w-12 h-12 rounded-full bg-gray-200 dark:bg-dark-border flex items-center justify-center text-xl">🎲</div>
                                 <span class="text-sm font-bold text-center">Tanto faz</span>
                             </div>
-
                             <?php foreach($profissionais as $prof): 
                                 $foto = !empty($prof['foto']) ? $prof['foto'] : 'https://ui-avatars.com/api/?name='.urlencode($prof['nome']).'&background=F59E0B&color=000';
                             ?>
@@ -172,7 +213,6 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
                             <div class="col-span-full text-center py-8 text-gray-500 border border-dashed border-gray-300 dark:border-dark-border rounded-xl">Selecione um dia acima 👆</div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -182,8 +222,9 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
         const LOJA_ID = <?= $loja['id'] ?>;
         const HORA_ABERTURA = "<?= $horaAbertura ?>";
         const HORA_FECHAMENTO = "<?= $horaFechamento ?>";
+        // Passa os dias ativos para o JS
+        const DIAS_ATIVOS = <?= json_encode($diasIndices) ?>; 
 
-        // Elementos
         const modal = document.getElementById('modal-agendamento');
         const inputServicoId = document.getElementById('input-servico-id');
         const inputProfId = document.getElementById('input-prof-id');
@@ -199,10 +240,7 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
             document.getElementById('modal-preco').innerText = preco;
             document.getElementById('modal-duracao').innerText = duracao + " min";
             
-            // Resetar
-            inputProfId.value = '';
-            inputData.value = '';
-            inputHora.value = '';
+            inputProfId.value = ''; inputData.value = ''; inputHora.value = '';
             document.querySelectorAll('.prof-card').forEach(c => c.classList.remove('border-gold', 'bg-gold/10', 'ring-2', 'ring-gold'));
             stepData.classList.add('opacity-50', 'pointer-events-none');
             stepHora.classList.add('opacity-50', 'pointer-events-none');
@@ -212,41 +250,29 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
             document.body.style.overflow = 'hidden';
         }
 
-        function fecharModal() {
-            modal.classList.add('hidden');
-            document.body.style.overflow = 'auto';
-        }
+        function fecharModal() { modal.classList.add('hidden'); document.body.style.overflow = 'auto'; }
 
-        // --- 1. SELEÇÃO DE PROFISSIONAL ---
         function selecionarProfissional(id, el) {
-            // Visual
             document.querySelectorAll('.prof-card').forEach(c => c.classList.remove('border-gold', 'bg-gold/10', 'ring-2', 'ring-gold'));
             el.classList.add('border-gold', 'bg-gold/10', 'ring-2', 'ring-gold');
-            
-            // Lógica
-            inputProfId.value = id ? id : ''; // Se null, manda vazio (qualquer um)
-            
-            // Libera próximo passo
+            inputProfId.value = id ? id : ''; 
             stepData.classList.remove('opacity-50', 'pointer-events-none');
-            gerarDias(); // Regenera dias (pode filtrar folgas no futuro)
-            
-            // Scroll suave
+            gerarDias(); 
             stepData.scrollIntoView({behavior: "smooth", block: "start"});
         }
 
-        // --- 2. GERAÇÃO DE DIAS ---
         function gerarDias() {
             const container = document.getElementById('lista-dias');
             container.innerHTML = '';
             const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
             const hoje = new Date();
 
-            for (let i = 0; i < 14; i++) {
+            for (let i = 0; i < 20; i++) { // Aumentei o range para achar dias disponíveis
                 const data = new Date(hoje);
                 data.setDate(hoje.getDate() + i);
                 
-                // Pular Domingo (Exemplo simples, ideal é ler config da loja)
-                if (data.getDay() === 0) continue; 
+                // VERIFICA SE O DIA ESTÁ ATIVO NA LOJA
+                if (!DIAS_ATIVOS.includes(data.getDay())) continue;
 
                 const diaF = data.toISOString().split('T')[0];
                 const btn = document.createElement('button');
@@ -254,15 +280,12 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
                 btn.innerHTML = `<span class="text-[10px] text-gray-500 uppercase font-bold group-hover:text-gold">${diasSemana[data.getDay()]}</span><span class="text-xl font-bold text-gray-900 dark:text-white group-hover:text-gold">${data.getDate()}</span>`;
                 
                 btn.onclick = (e) => {
-                    // Remove active
                     Array.from(container.children).forEach(c => {
                         c.classList.remove('bg-gold', 'border-gold', 'text-black');
                         c.classList.add('bg-white', 'dark:bg-black/20');
                         c.querySelector('span:last-child').classList.remove('text-black');
                         c.querySelector('span:last-child').classList.add('text-gray-900', 'dark:text-white');
                     });
-                    
-                    // Add active
                     btn.classList.remove('bg-white', 'dark:bg-black/20', 'hover:text-gold');
                     btn.classList.add('bg-gold', 'border-gold', 'text-black');
                     btn.querySelector('span:last-child').classList.remove('text-gray-900', 'dark:text-white');
@@ -276,12 +299,10 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
             }
         }
 
-        // --- 3. HORÁRIOS ---
         async function carregarHorarios(dataSelecionada) {
             const container = document.getElementById('grid-horarios');
             container.innerHTML = '<div class="col-span-full text-center py-4 text-gray-400 animate-pulse">Buscando disponibilidade...</div>';
             
-            // Gera slots (Simplificado: Abertura até Fechamento)
             let horarios = [];
             let [hI, mI] = HORA_ABERTURA.split(':').map(Number);
             let [hF, mF] = HORA_FECHAMENTO.split(':').map(Number);
@@ -290,13 +311,11 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
 
             while(atual < fim) {
                 horarios.push(atual.toTimeString().substr(0, 5));
-                atual.setHours(atual.getHours() + 1); // Intervalo de 1h
+                atual.setHours(atual.getHours() + 1);
             }
 
-            // Busca Ocupados
             let ocupados = [];
             try {
-                // Passa o ID do profissional para filtrar a agenda DELE (se selecionado)
                 const profId = inputProfId.value;
                 const url = `api_horarios.php?loja_id=${LOJA_ID}&data=${dataSelecionada}` + (profId ? `&profissional_id=${profId}` : '');
                 const res = await fetch(url);
@@ -306,8 +325,7 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
             container.innerHTML = '';
             horarios.forEach(h => {
                 const btn = document.createElement('button');
-                btn.type = 'button'; // Importante pra não submeter form
-                
+                btn.type = 'button'; 
                 if (ocupados.includes(h)) {
                     btn.className = "py-3 rounded-lg bg-gray-100 dark:bg-black/40 text-gray-300 dark:text-gray-700 line-through cursor-not-allowed border border-transparent";
                     btn.disabled = true;
@@ -345,9 +363,7 @@ $horaFechamento = substr($loja['horario_fechamento'] ?? '19:00', 0, 5);
             }
         }
 
-        // Dark Mode Logic
-        const toggleBtn = document.getElementById('theme-toggle'); 
-        const icon = document.getElementById('theme-icon'); 
+        const toggleBtn = document.getElementById('theme-toggle'); const icon = document.getElementById('theme-icon'); 
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); icon.textContent = '☀️'; } else { document.documentElement.classList.remove('dark'); icon.textContent = '🌙'; } 
         toggleBtn.addEventListener('click', () => { document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light'); icon.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; });
     </script>
