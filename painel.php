@@ -20,7 +20,6 @@ $texto_semana = ucfirst(strftime('%A', strtotime($filtro_data)));
 if($filtro_data == date('Y-m-d')) $texto_semana = "Hoje";
 
 // --- NOVO: BUSCA PROFISSIONAIS (Para o Modal) ---
-// Ajuste a query conforme o nome da sua tabela de profissionais
 $sqlProf = "SELECT id, nome, foto FROM profissionais WHERE estabelecimento_id = ?"; 
 $stmtProf = $pdo->prepare($sqlProf);
 $stmtProf->execute([$loja_id]);
@@ -121,13 +120,12 @@ foreach($agenda as $item) {
                         <p class="text-xs text-gray-500">Painel Profissional</p>
                     </div>
                 </div>
-                <a href="logout.php" class="md:hidden text-red-500 p-2"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg></a>
-            </div>
+                </div>
             
             <div class="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                 
-                <div class="bg-gray-100 dark:bg-dark-bg p-1.5 rounded-xl border border-gray-200 dark:border-dark-border flex items-center gap-2" id="date-trigger">
-                    <div class="flex items-center gap-3 bg-white dark:bg-dark-surface px-4 py-2 rounded-lg shadow-sm cursor-pointer hover:border-gold border border-transparent transition group">
+                <div class="bg-gray-100 dark:bg-dark-bg p-1.5 rounded-xl border border-gray-200 dark:border-dark-border flex items-center gap-2 w-full md:w-auto justify-center" id="date-trigger">
+                    <div class="flex items-center gap-3 bg-white dark:bg-dark-surface px-4 py-2 rounded-lg shadow-sm cursor-pointer hover:border-gold border border-transparent transition group w-full md:w-auto justify-center">
                         <div class="text-left">
                             <span class="text-[10px] text-gray-400 font-bold uppercase block leading-none mb-1">Data Selecionada</span>
                             <span class="text-lg font-bold text-gray-900 dark:text-white group-hover:text-gold transition"><?= $display_data ?></span>
@@ -138,7 +136,7 @@ foreach($agenda as $item) {
                     <input type="text" id="calendar-input" value="<?= $filtro_data ?>" class="hidden">
                 </div>
 
-                <div class="hidden md:flex items-center gap-2">
+                <div class="flex items-center justify-center gap-2 w-full md:w-auto mt-2 md:mt-0">
                     <a href="relatorios.php" class="w-10 h-10 flex items-center justify-center rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 transition" title="Relatórios Financeiros">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </a>
@@ -462,7 +460,6 @@ foreach($agenda as $item) {
             const agendamentoId = document.getElementById('atribuir-agendamento-id').value;
             if(!agendamentoId || !profissionalId) return;
 
-            // Feedback visual (opcional: mudar cursor ou mostrar loading)
             document.body.style.cursor = 'wait';
 
             try {
